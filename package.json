@@ -1,0 +1,13 @@
+{
+  "name": "brainrot-backend",
+  "version": "1.0.0",
+  "description": "Backend za Viode Scanner + Autojoiner",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "express": "^4.21.0"
+  }
+}
