@@ -8,45 +8,51 @@ const wss = new WebSocket.Server({ server });
 
 let connectedClients = [];
 
-console.log("Brainrot Backend pokrenut...");
+console.log("🚀 Brainrot Backend pokrenut...");
 
-// WebSocket konekcija (za main autojoiner)
+app.use(express.json());
+
 wss.on('connection', (ws) => {
-    console.log('✅ Main Autojoiner se konektovao');
+    console.log('✅ Main Autojoiner connected');
     connectedClients.push(ws);
 
     ws.on('close', () => {
         connectedClients = connectedClients.filter(client => client !== ws);
-        console.log('❌ Autojoiner se odjavio');
+        console.log('❌ Autojoiner disconnected');
     });
 });
 
-// Prima podatke od Viode botova
-app.use(express.json());
-
 app.post('/add', (req, res) => {
-    const data = req.body;
-    console.log('📨 Primljen brainrot od bota:', data);
+    try {
+        const data = req.body;
+        console.log('📨 Primljen brainrot:', data);
 
-    // Proslijedi svim konektovanim autojoinerima
-    const message = JSON.stringify({
-        type: "new_server",
-        name: data.brainrots && data.brainrots[0] ? data.brainrots[0].name : "Unknown",
-        money: data.brainrots && data.brainrots[0] ? data.brainrots[0].gen : "0",
-        jobid: data.jobId || data.job_id,
-        value: data.brainrots && data.brainrots[0] ? data.brainrots[0].value : 0
-    });
+        const message = JSON.stringify({
+            type: "new_server",
+            name: data.brainrots && data.brainrots[0] ? data.brainrots[0].name : "Unknown",
+            money: data.brainrots && data.brainrots[0] ? data.brainrots[0].gen : "0",
+            jobid: data.jobId || data.job_id,
+            value: data.brainrots && data.brainrots[0] ? data.brainrots[0].value : 0
+        });
 
-    connectedClients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(message);
-        }
-    });
+        let sent = 0;
+        connectedClients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message);
+                sent++;
+            }
+        });
 
-    res.status(200).send({ status: "ok" });
+        console.log(`📤 Poslato ${sent} autojoineru`);
+        res.status(200).json({ status: "ok", sent });
+
+    } catch (error) {
+        console.error('❌ Greška:', error);
+        res.status(500).json({ status: "error" });
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🚀 Backend radi na portu ${PORT}`);
+    console.log(`✅ Backend radi na portu ${PORT}`);
 });
