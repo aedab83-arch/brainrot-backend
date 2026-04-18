@@ -7,66 +7,55 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 let connectedClients = [];
-let knownServers = new Map(); // Za deduplikaciju (jobId -> data)
+let botRegistry = new Map();        // Za deduplikaciju botova
+let knownServers = new Map();       // Za get-server
 
-// Middleware
 app.use(express.json());
 
-// WebSocket za main autojoiner
+console.log("🚀 Prošireni Brainrot Backend pokrenut...");
+
+// ====================== WEBSOCKET ======================
 wss.on('connection', (ws) => {
     console.log('✅ Main Autojoiner connected');
     connectedClients.push(ws);
 
     ws.on('close', () => {
-        connectedClients = connectedClients.filter(client => client !== ws);
+        connectedClients = connectedClients.filter(c => c !== ws);
         console.log('❌ Autojoiner disconnected');
     });
 });
 
-// Glavni endpoint - Viode botovi šalju ovdje
+// ====================== API ENDPOINTS ======================
+
+// 1. Viode botovi šalju brainrote ovdje
 app.post('/add', (req, res) => {
-    try {
-        const data = req.body;
-        console.log('📨 Primljen brainrot od bota:', data);
+    const data = req.body;
+    console.log('📨 Primljen brainrot:', data);
 
-        const jobId = data.jobId || data.job_id;
-        if (!jobId) return res.status(400).json({ status: "error", message: "No jobId" });
-
-        // Spremi za deduplikaciju
-        knownServers.set(jobId, {
-            ...data,
-            timestamp: Date.now()
-        });
-
-        const message = JSON.stringify({
-            type: "new_server",
-            name: data.brainrots && data.brainrots[0] ? data.brainrots[0].name : "Unknown",
-            money: data.brainrots && data.brainrots[0] ? data.brainrots[0].gen : "0",
-            jobid: jobId,
-            value: data.brainrots && data.brainrots[0] ? data.brainrots[0].value : 0
-        });
-
-        // Pošalji svim main autojoinerima
-        let sent = 0;
-        connectedClients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(message);
-                sent++;
-            }
-        });
-
-        console.log(`📤 Poslato ${sent} autojoineru`);
-        res.status(200).json({ status: "ok", sent: sent });
-
-    } catch (error) {
-        console.error('❌ Greška:', error);
-        res.status(500).json({ status: "error" });
+    const jobId = data.jobId || data.job_id;
+    if (jobId) {
+        knownServers.set(jobId, data);
     }
+
+    const message = JSON.stringify({
+        type: "new_server",
+        name: data.brainrots && data.brainrots[0] ? data.brainrots[0].name : "Unknown",
+        money: data.brainrots && data.brainrots[0] ? data.brainrots[0].gen : "0",
+        jobid: jobId,
+        value: data.brainrots && data.brainrots[0] ? data.brainrots[0].value : 0
+    });
+
+    connectedClients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+        }
+    });
+
+    res.status(200).json({ status: "ok" });
 });
 
-// Endpoint za get-server (da main može pitati za sledeći server)
+// 2. GET SERVER - za auto hop
 app.get('/get-server', (req, res) => {
-    // Za sada vraća najnoviji server
     let latest = null;
     let latestTime = 0;
 
@@ -84,22 +73,28 @@ app.get('/get-server', (req, res) => {
     }
 });
 
-// Endpoint za record-hop
+// 3. RECORD HOP
 app.post('/record-hop', (req, res) => {
     console.log('📌 Hop recorded:', req.body);
     res.status(200).json({ status: "ok" });
 });
 
-// Registry za bot deduplikaciju (jednostavna verzija)
+// 4. BOT REGISTRY - deduplikacija
 app.post('/scanner-register', (req, res) => {
-    console.log('📋 Bot registered:', req.body);
+    const { username } = req.body;
+    if (username) {
+        botRegistry.set(username, Date.now());
+        console.log(`📋 Bot registered: ${username}`);
+    }
     res.status(200).json({ status: "ok" });
 });
 
 app.get('/scanner-list', (req, res) => {
-    res.json({ usernames: [] }); // Za sada prazno, možeš proširiti kasnije
+    const usernames = Array.from(botRegistry.keys());
+    res.json({ usernames: usernames });
 });
 
+// ====================== START SERVER ======================
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`✅ Prošireni Backend radi na portu ${PORT}`);
